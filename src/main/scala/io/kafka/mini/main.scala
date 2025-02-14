@@ -1,9 +1,10 @@
 package io.kafka.mini
 
+import java.net.Socket
 import java.nio.ByteBuffer
 import java.net.InetSocketAddress
-import java.io.{FileInputStream,IOException}
 import java.nio.channels.{SocketChannel,ServerSocketChannel}
+import java.io.{FileInputStream,IOException,DataOutputStream}
 
 val PORT 		= 9386
 val HOST 		= "localhost"
@@ -47,17 +48,28 @@ def dummyServer() = {
 
 @main
 def main(): Unit = {
-	Thread.ofPlatform.unstarted(() => dummyServer()).start();
+	val thread = Thread.ofPlatform.unstarted(() => dummyServer())
+	thread.start()
 
-	val socket = SocketChannel.open()
-	socket.connect(InetSocketAddress(HOST, PORT))
-	socket.configureBlocking(true)
+	val socket = Socket(HOST, PORT)
+	println(s"Connected with server ${socket.getInetAddress}:${socket.getPort}")
 
-	println(s"Sending transferTo system call from $CACHE_PATH to socket")
-
-	val fileChannel = FileInputStream(CACHE_PATH).getChannel
+	val inputStream = FileInputStream(CACHE_PATH)
+	val outputStream = DataOutputStream(socket.getOutputStream)
+	
 	val start = System.currentTimeMillis
 
-	var bytesSent = fileChannel.transferTo(0, FILE_SIZE, socket)
-	println(s"Bytes sent ::: $bytesSent :: ${System.currentTimeMillis - start}ms")
+	var transfering = Array.ofDim[Byte](4096)
+	var read = 0;
+	var total = 0;
+	
+	read = inputStream.read(transfering)
+	while(read >= 0) {
+		outputStream.write(transfering)
+		total += read
+
+		read = inputStream.read(transfering)
+	}
+	
+	println(s"Bytes sent ::: $total :: ${System.currentTimeMillis - start}ms")
 }
